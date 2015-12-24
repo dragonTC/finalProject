@@ -3,8 +3,16 @@ import java.awt.event.*;
 import javax.swing.*;
 import java.io.*;
 import java.net.*;
+import java.util.Scanner;
 
-public class Client{
+import ezprivacy.toolkit.*;
+import ezprivacy.service.authsocket.*;
+import ezprivacy.secret.*;
+import ezprivacy.netty.session.ProtocolException;
+
+public class Client
+	implements Runnable
+{
 	public static void main(String[] args) {
 		Client cln = new Client();
 		cln.run();
@@ -15,7 +23,67 @@ public class Client{
 	}
 
 	private void printMsg(String str){
-		
+		info.setText(str);
+	}
+
+	class connectListener
+		implements ActionListener
+	{
+		public void actionPerformed(ActionEvent e){
+			if(connectionStatus == false){
+				printMsg("connecting server...");
+				serverIP = ipTextField.getText();
+				serverPort = Integer.pharseInt(portTextField.getText());
+				connectB.setEnabled(false);
+				ipTextField.setEnabled(false);
+				portTextField.setEnabled(false);
+	
+				try{
+					EnhancedProfileManager profile = EZCardLoader.loadEnhancedProfile(new File("pclient.card"), "passwd");
+					EnhancedAuthSocketClient local = new EnhancedAuthSocketClient(profile);
+					local.connect(serverIP, serverPort);
+	
+					client.doEnhancedKeyDistribution();
+					byte[] tmp = local.getSessionKey().getKeyValue();
+					key = CipherUtil.copy(tmp, 0, CipherUtil.KEY_LENGTH);
+					iv = CipherUtil.copy(tmp, CipherUtil.KEY_LENGTH, CipherUtil.BLOCK_LENGTH);
+	
+					client.doRapidAuthentication();
+					EZCardLoader.saveEnhancedProfile(profile, new File("pclient.card"), "passwd");
+	
+				}catch(Exception){
+					printMsg("error: failed to Authenticate server, please try again");
+					EZCardLoader.saveEnhancedProfile(profile, new File("pclient.card"), "passwd");
+					connectB.setEnabled(true);
+					ipTextField.setEnabled(true);
+					portTextField.setEnabled(true);
+					return ;
+				}
+	
+				printMsg("connection success!");
+				connectB.setText("disconnect");
+				connectB.setEnabled(true);
+				connectionStatus = true;
+
+				getServerFileList();
+			}else{
+
+			}
+		}
+	}
+
+	class browseListner
+		implements ActionListener 
+	{
+		public void actionPerformed(ActionEvent e){
+			JFileChooser chooser = new JFileChooser();
+			int chooseStatus = chooser.showOpenDialog(frame);
+
+			if(chooseStatus == JFileChooser.APPROVE_OPTION){
+				File f = chooser.getSelectedFile();
+				selectedFileTextField.setText(f.getPath());
+			}
+		}
 	}
 
 	private void setupUI(){
@@ -27,7 +95,7 @@ public class Client{
 		GridBagConstraints cons = new GridBagConstraints();
 		cons.insets = new Insets(4, 4, 4, 4);
 		
-		/***row 1***/
+		/*****row 1*****/
 		JLabel ipL = new JLabel("server IP: ");
 		cons.gridx = 0;		cons.gridy = 0;
 		cons.gridwidth = 1;	cons.gridheight = 1;
@@ -60,8 +128,9 @@ public class Client{
 		cons.anchor = GridBagConstraints.WEST;
 		frame.add(portTextField, cons);
 		
-		JButton connectB = new JButton("Connect");
-		//connectB.addActionListener(new connectListener());
+		connectB = new JButton("Connect");
+		connectionStatus = false;
+		connectB.addActionListener(new connectListener());
 		cons.gridx = 5;		cons.gridy = 0;
 		cons.gridwidth = 1;	cons.gridheight = 1;
 		cons.weightx = 0;	cons.weighty = 0;
@@ -70,7 +139,7 @@ public class Client{
 		frame.add(connectB, cons);
 		
 
-		/***row 1***/
+		/*****row 1*****/
 		info = new JLabel("welcome!");
 		cons.gridx = 0;		cons.gridy = 1;
 		cons.gridwidth = 6;	cons.gridheight = 1;
@@ -79,7 +148,7 @@ public class Client{
 		cons.anchor = GridBagConstraints.WEST;
 		frame.add(info, cons);
 
-		/***row 2***/
+		/*****row 2*****/
 		JLabel fileL = new JLabel("Local file:");
 		cons.gridx = 0;		cons.gridy = 2;
 		cons.gridwidth = 1;	cons.gridheight = 1;
@@ -96,8 +165,8 @@ public class Client{
 		cons.anchor = GridBagConstraints.CENTER;
 		frame.add(selectedFileTextField, cons);
 
-		JButton browseB = new JButton("Browse");
-		//
+		browseB = new JButton("Browse");
+		browseB.addActionListener(new browseListner());
 		cons.gridx = 5;		cons.gridy = 2;
 		cons.gridwidth = 1;	cons.gridheight = 1;
 		cons.weightx = 0;	cons.weighty = 0;
@@ -105,7 +174,8 @@ public class Client{
 		cons.anchor = GridBagConstraints.CENTER;
 		frame.add(browseB, cons);
 
-		/***row 3 and below***/
+		/*****row 3 and below*****/
+
 		/*server file list*/
 		DefaultListModel<String> lis = new DefaultListModel<String>();
 		lis.addElement("disconnected");
@@ -113,8 +183,6 @@ public class Client{
 		serverFileList = new JList<String>(lis);
 		serverFileList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 		serverFileList.setFont(new Font("", Font.ITALIC, 12));
-		//serverFileList.setVisibleRowCount(7);
-		//list.addListListener()
 
 		JScrollPane pane = new JScrollPane(serverFileList);
 		cons.gridx = 0;		cons.gridy = 3;
@@ -126,7 +194,7 @@ public class Client{
 		/*end server file list*/
 
 		
-		JButton uploadB = new JButton("Upload");
+		uploadB = new JButton("Upload");
 		//
 		uploadB.setEnabled(false);
 		cons.gridx = 5;		cons.gridy = 3;
@@ -136,7 +204,7 @@ public class Client{
 		cons.anchor = GridBagConstraints.CENTER;
 		frame.add(uploadB, cons);
 
-		JButton downloadB = new JButton("Download");
+		downloadB = new JButton("Download");
 		//
 		downloadB.setEnabled(false);
 		cons.gridx = 5;		cons.gridy = 4;
@@ -146,7 +214,7 @@ public class Client{
 		cons.anchor = GridBagConstraints.CENTER;
 		frame.add(downloadB, cons);
 
-		JButton renameB = new JButton("Rename");
+		renameB = new JButton("Rename");
 		//
 		renameB.setEnabled(false);
 		cons.gridx = 5;		cons.gridy = 5;
@@ -156,7 +224,7 @@ public class Client{
 		cons.anchor = GridBagConstraints.CENTER;
 		frame.add(renameB, cons);
 
-		JButton deleteB = new JButton("Delete");
+		deleteB = new JButton("Delete");
 		//
 		deleteB.setEnabled(false);
 		cons.gridx = 5;		cons.gridy = 6;
@@ -172,8 +240,15 @@ public class Client{
 		frame.setVisible(true);
 	}
 	
+	private JButton connectB, browseB, uploadB, downloadB, renameB, deleteB;
 	private JFrame frame;
 	private JLabel info;
 	private JTextField ipTextField, portTextField, selectedFileTextField;
 	private JList<String> serverFileList;
+
+	private ServerSocket localServe;
+	private String serverIP;
+	private int serverPort;
+	private boolean connectionStatus;
+	private byte[] key, iv;
 }
