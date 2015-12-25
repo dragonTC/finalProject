@@ -22,37 +22,39 @@ public class Client
 		setupUI();
 	}
 
-	private void printMsg(String str){
-		info.setText(str);
+	private void getServerFileList(){
+
 	}
 
 	class connectListener
 		implements ActionListener
 	{
-		public void actionPerformed(ActionEvent e){
+		public void actionPerformed(ActionEvent ev){
 			if(connectionStatus == false){
 				printMsg("connecting server...");
 				serverIP = ipTextField.getText();
-				serverPort = Integer.pharseInt(portTextField.getText());
+				serverPort = Integer.parseInt(portTextField.getText());
+
 				connectB.setEnabled(false);
 				ipTextField.setEnabled(false);
 				portTextField.setEnabled(false);
-	
+
+				EnhancedProfileManager profile = EZCardLoader.loadEnhancedProfile(new File("pclient.card"), "passwd");
+
 				try{
-					EnhancedProfileManager profile = EZCardLoader.loadEnhancedProfile(new File("pclient.card"), "passwd");
 					EnhancedAuthSocketClient local = new EnhancedAuthSocketClient(profile);
 					local.connect(serverIP, serverPort);
 	
-					client.doEnhancedKeyDistribution();
+					local.doEnhancedKeyDistribution();
 					byte[] tmp = local.getSessionKey().getKeyValue();
 					key = CipherUtil.copy(tmp, 0, CipherUtil.KEY_LENGTH);
 					iv = CipherUtil.copy(tmp, CipherUtil.KEY_LENGTH, CipherUtil.BLOCK_LENGTH);
 	
-					client.doRapidAuthentication();
+					local.doRapidAuthentication();
 					EZCardLoader.saveEnhancedProfile(profile, new File("pclient.card"), "passwd");
 	
-				}catch(Exception){
-					printMsg("error: failed to Authenticate server, please try again");
+				}catch(Exception e){
+					printMsg("failed to connect server, please try again");
 					EZCardLoader.saveEnhancedProfile(profile, new File("pclient.card"), "passwd");
 					connectB.setEnabled(true);
 					ipTextField.setEnabled(true);
@@ -65,9 +67,11 @@ public class Client
 				connectB.setEnabled(true);
 				connectionStatus = true;
 
-				getServerFileList();
-			}else{
-
+				//getServerFileList();
+				
+			}
+			else{
+				printMsg("disconnecting...");
 			}
 		}
 	}
@@ -86,11 +90,14 @@ public class Client
 		}
 	}
 
+	private void printMsg(String str){
+		info.setText("[client]" + str);
+	}
+
 	private void setupUI(){
 		frame = new JFrame();
 		frame.setLayout(new GridBagLayout());
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		//frame.setResizable(false);
 		
 		GridBagConstraints cons = new GridBagConstraints();
 		cons.insets = new Insets(4, 4, 4, 4);
