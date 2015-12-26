@@ -42,7 +42,7 @@ public class Client
 				EnhancedProfileManager profile = EZCardLoader.loadEnhancedProfile(new File("pclient.card"), "passwd");
 
 				try{
-					EnhancedAuthSocketClient local = new EnhancedAuthSocketClient(profile);
+					local = new EnhancedAuthSocketClient(profile);
 					local.connect(serverIP, serverPort);
 	
 					local.doEnhancedKeyDistribution();
@@ -52,6 +52,9 @@ public class Client
 	
 					local.doRapidAuthentication();
 					EZCardLoader.saveEnhancedProfile(profile, new File("pclient.card"), "passwd");
+
+					sin = new DataInputStream(local.getInputStream());
+					sout = new DataOutputStream(local.getOutputStream());
 	
 				}catch(Exception e){
 					printMsg("failed to connect server, please try again");
@@ -72,6 +75,25 @@ public class Client
 			}
 			else{
 				printMsg("disconnecting...");
+				connectB.setEnabled(false);
+				try{
+					sout.writeInt(0);
+					sout.flush();
+					sout.close(); sin.close();
+				}catch (Exception e) {
+					e.printStackTrace();
+				}
+
+				serverIP = ""; serverPort = -1;
+				connectionStatus = false;
+				key = iv = null;
+
+				connectB.setText("connect");
+				connectB.setEnabled(true);
+				ipTextField.setEnabled(true);
+				portTextField.setEnabled(true);
+
+				printMsg("disconnected");
 			}
 		}
 	}
@@ -91,7 +113,7 @@ public class Client
 	}
 
 	private void printMsg(String str){
-		info.setText("[client]" + str);
+		info.setText("[client] " + str);
 	}
 
 	private void setupUI(){
@@ -130,8 +152,8 @@ public class Client
 		portTextField = new JTextField(6);
 		cons.gridx = 4;		cons.gridy = 0;
 		cons.gridwidth = 1;	cons.gridheight = 1;
-		cons.weightx = 0;	cons.weighty = 0;
-		cons.fill = GridBagConstraints.NONE;
+		cons.weightx = 1.0;	cons.weighty = 0;
+		cons.fill = GridBagConstraints.HORIZONTAL;
 		cons.anchor = GridBagConstraints.WEST;
 		frame.add(portTextField, cons);
 		
@@ -258,4 +280,8 @@ public class Client
 	private int serverPort;
 	private boolean connectionStatus;
 	private byte[] key, iv;
+	private DataInputStream sin;
+	private DataOutputStream sout;
+
+	EnhancedAuthSocketClient local;
 }
