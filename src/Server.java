@@ -21,69 +21,97 @@ public class Server
 		port = scan.nextInt();
 
 		while(true){	//Server main loop
-			profile = EZCardLoader.loadEnhancedProfile(new File("pserver.card"), "passwd");
-			serverAcceptor = new EnhancedAuthSocketServerAcceptor(profile);
-			printLog("server started, waiting for connection");
+			printLog("server started");
 
+			/***do handshake***/
 			try{
+				EnhancedProfileManager profile = EZCardLoader.loadEnhancedProfile(new File("pserver.card"), "passwd");
+				EnhancedAuthSocketServerAcceptor serverAcceptor = new EnhancedAuthSocketServerAcceptor(profile);
 				serverAcceptor.bind(port);
-				server = serverAcceptor.accept();
+				AuthSocketServer local = serverAcceptor.accept();
+				printLog("waiting for connection...");
+
+				printLog("client attempted to connect: " + local.getRemoteAddress().toString());
+				local.waitUntilAuthenticated();
+
+				EZCardLoader.saveEnhancedProfile(profile, new File("pserver.card"), "passwd");
+
+				byte[] tmp = local.getSessionKey().getKeyValue();
+				key = CipherUtil.copy(tmp, 0, CipherUtil.KEY_LENGTH);
+				iv = CipherUtil.copy(tmp, CipherUtil.KEY_LENGTH, CipherUtil.BLOCK_LENGTH);
+
+				local.close();
+				serverAcceptor.close();
 			}catch(Exception e){
 				e.printStackTrace();
 				printLog(e.getMessage());
-				abandon();
 				continue;
 			}
 
-			printLog("client attempted to connect: " + server.getRemoteAddress().toString());
+			printLog("authenticate success!");
+			/***end handshake***/
+
+			/***do connection***/
+			printLog("connecting...");
 
 			try{
-				server.waitUntilAuthenticated();
+				ss = new ServerSocket(port);
+				server = ss.accept();
+
+				sin = new DataInputStream(server.getInputStream());
+				sout = new DataOutputStream(server.getOutputStream());
 			}catch (Exception e) {
 				e.printStackTrace();
-				printLog(e.getMessage());
-				abandon();
+				printLog("failed to build connection");
 				continue;
 			}
 
-			EZCardLoader.saveEnhancedProfile(profile, new File("pserver.card"), "passwd");
-			byte[] tmp = server.getSessionKey().getKeyValue();
-			byte[] key = CipherUtil.copy(tmp, 0, CipherUtil.KEY_LENGTH);
-			byte[] iv = CipherUtil.copy(tmp, CipherUtil.KEY_LENGTH, CipherUtil.BLOCK_LENGTH);
-
-			sin = new DataInputStream(server.getInputStream());
-			sout = new DataOutputStream(server.getOutputStream());
-
 			printLog("connect success!");
+			/***end connection***/
 
+			/***main server service***/
 			try{
-				/***server service***/
 				while(true){
 
 					int mode = sin.readInt();
 					printLog("receive request: " + Integer.toString(mode));
 
 					if(mode == 0){	//disconnect
-						server.close();
-						serverAcceptor.close();
+						closeServer();
 						printLog("connection closed");
 						break;
 					}
 					switch(mode){
-						case 1:	sendServerFileList();
-						case 2:	//upload
-						case 3:	//download
+						case 1:
+							sendServerFileList();
+							break;
+						case 2:
+							receiveFile();
+							break;
+						case 3:
+							sendFile();
+							break;
 						case 4:	//rename
 						case 5:	//remove
 					}
 				}
-				/***end server service***/
 	
 			}catch(Exception e){
-				abandon();
-				printLog(e.getMessage());
+				closeServer();
 				e.printStackTrace();
+				printLog(e.getMessage());
 			}
+			/***end mainserver service***/
+		}
+	}
+
+	private void closeServer(){
+		try{
+			sin.close(); sout.close();
+			server.close();
+			ss.close();
+		}catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 
@@ -96,6 +124,7 @@ public class Server
 
 		sout.writeInt(fileList.length);
 		for(int i=0 ; i<fileList.length ; ++i){
+			printLog("send list: " + fileList[i].getName());
 			byte[] tmp = fileList[i].getName().getBytes();
 			sout.writeInt(tmp.length);
 			sout.flush();
@@ -104,13 +133,41 @@ public class Server
 		}
 	}
 
-	private void abandon(){
-		EZCardLoader.saveEnhancedProfile(profile, new File("pserver.card"), "passwd");
-		profile = null;
-		server = null;
-		serverAcceptor = null;
-		sin = null;
-		sout = null;
+	private void sendFile()
+		throws IOException
+	{
+		printLog("sending file...");
+
+		try{
+			int len = sin.readInt();
+			byte[] buf = new byte[2048];
+			sin.readFully(buf, 0, len);
+			String fileName = new String(buf, 0, len);
+	
+			File target = new File("server file\\" + fileName);
+			if(!target.exists()){
+				sout.writeInt(0);
+				printLog("client attmpt to receive non-exist file : " + fileName);
+				return ;
+			}
+
+			FileInputStream fin = new FileInputStream(target);
+			while((len = fin.read(buf, 0, 48)) != -1){
+				sout.writeInt(len);
+				sout.write(buf, 0, len);
+			}
+			fin.close();
+			sout.writeInt(0);
+
+			printLog("success!");
+		}catch (Exception e) {
+			e.printStackTrace();
+			printLog("failed to send file");
+		}
+	}
+
+	private void receiveFile(){
+
 	}
 
 	void printLog(String str){
@@ -125,9 +182,9 @@ public class Server
 		}
 	}
 
-	private EnhancedProfileManager profile;
-	private EnhancedAuthSocketServerAcceptor serverAcceptor;
-	AuthSocketServer server;
+	ServerSocket ss;
+	Socket server;
+	byte[] key, iv;
 
 	DataInputStream sin;
 	DataOutputStream sout;

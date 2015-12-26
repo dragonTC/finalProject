@@ -37,7 +37,9 @@ public class Client
 			int len = sin.readInt();
 			sin.read(buf, 0, len);
 
-			serverFileListElement.addElement(new String(buf, 0, len));
+			String stmp = new String(buf, 0, len);
+			printMsg("get list: " + stmp);
+			serverFileListElement.addElement(stmp);
 		}
 	}
 
@@ -47,17 +49,14 @@ public class Client
 		public void actionPerformed(ActionEvent ev){
 			if(connectionStatus == false){
 				printMsg("connecting server...");
+				connectB.setEnabled(false);
 				serverIP = ipTextField.getText();
 				serverPort = Integer.parseInt(portTextField.getText());
 
-				connectB.setEnabled(false);
-				ipTextField.setEnabled(false);
-				portTextField.setEnabled(false);
-
+				/***do hand shake***/
 				EnhancedProfileManager profile = EZCardLoader.loadEnhancedProfile(new File("pclient.card"), "passwd");
-
 				try{
-					local = new EnhancedAuthSocketClient(profile);
+					EnhancedAuthSocketClient local = new EnhancedAuthSocketClient(profile);
 					local.connect(serverIP, serverPort);
 	
 					local.doEnhancedKeyDistribution();
@@ -68,33 +67,30 @@ public class Client
 					local.doRapidAuthentication();
 					EZCardLoader.saveEnhancedProfile(profile, new File("pclient.card"), "passwd");
 
-					sin = new DataInputStream(local.getInputStream());
-					sout = new DataOutputStream(local.getOutputStream());
-	
+					local.close();
 				}catch(Exception e){
-					printMsg("failed to connect server, please try again");
+					printMsg("failed to authenticate server, please try again");
 					EZCardLoader.saveEnhancedProfile(profile, new File("pclient.card"), "passwd");
-					connectB.setEnabled(true);
-					ipTextField.setEnabled(true);
-					portTextField.setEnabled(true);
+					changeUIStatus(false);
 					return ;
 				}
-	
-				printMsg("connection success!");
-				connectB.setText("disconnect");
-				connectB.setEnabled(true);
-				connectionStatus = true;
-				uploadB.setEnabled(true);
-				downloadB.setEnabled(true);
-				serverFileList.setEnabled(true);
+
+				printMsg("authenticate success!");
+				/***end hand shake***/
 
 				try{
-					getServerFileList();
-				}catch (IOException e) {
+					Thread.sleep(100);
+					client = new Socket(serverIP, serverPort);
+					sin = new DataInputStream(client.getInputStream());
+					sout = new DataOutputStream(client.getOutputStream());
+					printMsg("connect success!");
+					changeUIStatus(true);
+				}catch (Exception e) {
+					printMsg("failed to build connection, please try again");
 					e.printStackTrace();
+					changeUIStatus(false);
+					return ;
 				}
-				
-				
 			}
 			else{
 				printMsg("disconnecting...");
@@ -103,23 +99,20 @@ public class Client
 					sout.writeInt(0);
 					sout.flush();
 					sout.close(); sin.close();
+					client.close();
 				}catch (Exception e) {
+					printMsg("error while disconnecting");
 					e.printStackTrace();
 				}
 
-				serverIP = ""; serverPort = -1;
-				connectionStatus = false;
+				serverIP = null;
+				serverPort = -1;
 				key = iv = null;
+				sout = null;
+				sin = null;
+				client = null;
 
-				connectB.setText("connect");
-				connectB.setEnabled(true);
-				ipTextField.setEnabled(true);
-				portTextField.setEnabled(true);
-				uploadB.setEnabled(false);
-				downloadB.setEnabled(false);
-				serverFileList.setEnabled(false);
-				serverFileListElement.clear();
-				serverFileListElement.addElement("disconnected");
+				changeUIStatus(false);
 
 				printMsg("disconnected");
 			}
@@ -140,11 +133,56 @@ public class Client
 		}
 	}
 
-	class uploadListener
-		implements ActionListener 
+	class uploadListener 
+		implements ActionListener
 	{
 		public void actionPerformed(ActionEvent ev){
 
+		}
+	}
+
+	class downloadListener
+		implements ActionListener 
+	{
+		public void actionPerformed(ActionEvent ev){
+			printMsg("downloading...");
+
+			try{
+				String fileName = serverFileList.getSelectedValue();
+				if(fileName == null){
+					printMsg("hadn't select a file");
+					return ;
+				}
+
+				File target = new File("client file\\" + fileName);
+				FileOutputStream fout = new FileOutputStream(target);
+				byte[] buf = fileName.getBytes();
+				int len;
+			
+				sout.writeInt(3);
+
+				sout.writeInt(buf.length);
+				sout.write(buf, 0, buf.length);
+
+				while((len = sin.readInt()) != 0){
+					sin.readFully(buf, 0, len);
+					fout.write(buf, 0, len);
+				}
+				fout.close();
+			}catch (IOException e) {
+				e.printStackTrace();
+				printMsg("download failed");
+				return ;
+			}
+
+			try{
+				getServerFileList();
+			}catch (Exception e) {
+				e.printStackTrace();
+				printMsg("failed to receive file list");
+			}
+
+			printMsg("download complete!");
 		}
 	}
 
@@ -261,7 +299,7 @@ public class Client
 
 		
 		uploadB = new JButton("Upload");
-		//
+		uploadB.addActionListener(new uploadListener());
 		uploadB.setEnabled(false);
 		cons.gridx = 5;		cons.gridy = 3;
 		cons.gridwidth = 1;	cons.gridheight = 1;
@@ -271,7 +309,7 @@ public class Client
 		frame.add(uploadB, cons);
 
 		downloadB = new JButton("Download");
-		//
+		downloadB.addActionListener(new downloadListener());
 		downloadB.setEnabled(false);
 		cons.gridx = 5;		cons.gridy = 4;
 		cons.gridwidth = 1;	cons.gridheight = 1;
@@ -306,6 +344,47 @@ public class Client
 		frame.setVisible(true);
 	}
 	
+	private void changeUIStatus(boolean status){
+		if(status){
+			connectionStatus = true;
+
+			ipTextField.setEnabled(false);
+			portTextField.setEnabled(false);
+			connectB.setEnabled(true);
+			connectB.setText("disconnect");
+
+			downloadB.setEnabled(true);
+			uploadB.setEnabled(true);
+			renameB.setEnabled(true);
+			deleteB.setEnabled(true);
+
+			serverFileList.setEnabled(true);
+			try{
+				getServerFileList();
+			}catch(Exception e){
+				printMsg(e.getMessage());
+				e.printStackTrace();
+			}
+		}
+		else{
+			connectionStatus = false;
+
+			ipTextField.setEnabled(true);
+			portTextField.setEnabled(true);
+			connectB.setEnabled(true);
+			connectB.setText("connect");
+
+			downloadB.setEnabled(false);
+			uploadB.setEnabled(false);
+			renameB.setEnabled(false);
+			deleteB.setEnabled(false);
+
+			serverFileList.setEnabled(false);
+			serverFileListElement.clear();
+			serverFileListElement.addElement("disconnected");
+		}
+	}
+
 	private JButton connectB, browseB, uploadB, downloadB, renameB, deleteB;
 	private JFrame frame;
 	private JLabel info;
@@ -313,7 +392,7 @@ public class Client
 	DefaultListModel<String> serverFileListElement;
 	private JList<String> serverFileList;
 
-	private ServerSocket localServe;
+	private Socket client;
 	private String serverIP;
 	private int serverPort;
 	private boolean connectionStatus;
@@ -321,5 +400,4 @@ public class Client
 	private DataInputStream sin;
 	private DataOutputStream sout;
 
-	EnhancedAuthSocketClient local;
 }
