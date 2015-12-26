@@ -22,8 +22,23 @@ public class Client
 		setupUI();
 	}
 
-	private void getServerFileList(){
+	private void getServerFileList()
+		throws IOException
+	{
+		serverFileListElement.clear();
 
+		sout.writeInt(1);
+		sout.flush();
+		byte[] buf = new byte[2048];
+
+		int cnt = sin.readInt();
+		printMsg("total file: " + cnt);
+		for(int i=0 ; i<cnt ; ++i){
+			int len = sin.readInt();
+			sin.read(buf, 0, len);
+
+			serverFileListElement.addElement(new String(buf, 0, len));
+		}
 	}
 
 	class connectListener
@@ -69,8 +84,16 @@ public class Client
 				connectB.setText("disconnect");
 				connectB.setEnabled(true);
 				connectionStatus = true;
+				uploadB.setEnabled(true);
+				downloadB.setEnabled(true);
+				serverFileList.setEnabled(true);
 
-				//getServerFileList();
+				try{
+					getServerFileList();
+				}catch (IOException e) {
+					e.printStackTrace();
+				}
+				
 				
 			}
 			else{
@@ -92,6 +115,11 @@ public class Client
 				connectB.setEnabled(true);
 				ipTextField.setEnabled(true);
 				portTextField.setEnabled(true);
+				uploadB.setEnabled(false);
+				downloadB.setEnabled(false);
+				serverFileList.setEnabled(false);
+				serverFileListElement.clear();
+				serverFileListElement.addElement("disconnected");
 
 				printMsg("disconnected");
 			}
@@ -101,7 +129,7 @@ public class Client
 	class browseListner
 		implements ActionListener 
 	{
-		public void actionPerformed(ActionEvent e){
+		public void actionPerformed(ActionEvent ev){
 			JFileChooser chooser = new JFileChooser();
 			int chooseStatus = chooser.showOpenDialog(frame);
 
@@ -112,8 +140,17 @@ public class Client
 		}
 	}
 
+	class uploadListener
+		implements ActionListener 
+	{
+		public void actionPerformed(ActionEvent ev){
+
+		}
+	}
+
 	private void printMsg(String str){
 		info.setText("[client] " + str);
+		System.out.println("[client] " + str);
 	}
 
 	private void setupUI(){
@@ -206,12 +243,12 @@ public class Client
 		/*****row 3 and below*****/
 
 		/*server file list*/
-		DefaultListModel<String> lis = new DefaultListModel<String>();
-		lis.addElement("disconnected");
+		serverFileListElement = new DefaultListModel<String>();
+		serverFileListElement.addElement("disconnected");
 
-		serverFileList = new JList<String>(lis);
+		serverFileList = new JList<String>(serverFileListElement);
 		serverFileList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-		serverFileList.setFont(new Font("", Font.ITALIC, 12));
+		serverFileList.setEnabled(false);
 
 		JScrollPane pane = new JScrollPane(serverFileList);
 		cons.gridx = 0;		cons.gridy = 3;
@@ -273,6 +310,7 @@ public class Client
 	private JFrame frame;
 	private JLabel info;
 	private JTextField ipTextField, portTextField, selectedFileTextField;
+	DefaultListModel<String> serverFileListElement;
 	private JList<String> serverFileList;
 
 	private ServerSocket localServe;

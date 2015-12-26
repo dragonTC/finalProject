@@ -51,8 +51,8 @@ public class Server
 			byte[] key = CipherUtil.copy(tmp, 0, CipherUtil.KEY_LENGTH);
 			byte[] iv = CipherUtil.copy(tmp, CipherUtil.KEY_LENGTH, CipherUtil.BLOCK_LENGTH);
 
-			DataInputStream sin = new DataInputStream(server.getInputStream());
-			DataOutputStream sout = new DataOutputStream(server.getOutputStream());
+			sin = new DataInputStream(server.getInputStream());
+			sout = new DataOutputStream(server.getOutputStream());
 
 			printLog("connect success!");
 
@@ -61,7 +61,7 @@ public class Server
 				while(true){
 
 					int mode = sin.readInt();
-					printLog(Integer.toString(mode));
+					printLog("receive request: " + Integer.toString(mode));
 
 					if(mode == 0){	//disconnect
 						server.close();
@@ -70,7 +70,7 @@ public class Server
 						break;
 					}
 					switch(mode){
-						case 1:	//ls
+						case 1:	sendServerFileList();
 						case 2:	//upload
 						case 3:	//download
 						case 4:	//rename
@@ -79,7 +79,6 @@ public class Server
 				}
 				/***end server service***/
 	
-				//sin.close(); sout.close();
 			}catch(Exception e){
 				abandon();
 				printLog(e.getMessage());
@@ -88,11 +87,30 @@ public class Server
 		}
 	}
 
+	private void sendServerFileList()
+		throws IOException
+	{
+		printLog("sending file lists...");
+		File serverFileRoot = new File("server file");
+		File[] fileList = serverFileRoot.listFiles();
+
+		sout.writeInt(fileList.length);
+		for(int i=0 ; i<fileList.length ; ++i){
+			byte[] tmp = fileList[i].getName().getBytes();
+			sout.writeInt(tmp.length);
+			sout.flush();
+			sout.write(tmp, 0, tmp.length);
+			sout.flush();
+		}
+	}
+
 	private void abandon(){
 		EZCardLoader.saveEnhancedProfile(profile, new File("pserver.card"), "passwd");
 		profile = null;
 		server = null;
 		serverAcceptor = null;
+		sin = null;
+		sout = null;
 	}
 
 	void printLog(String str){
@@ -110,6 +128,9 @@ public class Server
 	private EnhancedProfileManager profile;
 	private EnhancedAuthSocketServerAcceptor serverAcceptor;
 	AuthSocketServer server;
+
+	DataInputStream sin;
+	DataOutputStream sout;
 
 	private Scanner scan;
 	private int port;

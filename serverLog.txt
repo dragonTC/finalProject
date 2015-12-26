@@ -1,21 +1,10 @@
-server started, waiting for connection
-client attempted to connect: /127.0.0.1:58603
-connect success!
-0
+receive request: 0
 connection closed
 server started, waiting for connection
-client attempted to connect: /127.0.0.1:58674
+client attempted to connect: /127.0.0.1:50593
 connect success!
-server started, waiting for connection
-client attempted to connect: /127.0.0.1:58860
-connect success!
-0
+receive request: 1
+sending file lists...
+receive request: 0
 connection closed
 server started, waiting for connection
-client attempted to connect: /127.0.0.1:58927
-connect success!
-0
-connection closed
-server started, waiting for connection
-client attempted to connect: /127.0.0.1:58988
-connect success!
