@@ -51,13 +51,13 @@ public class Client
 				printMsg("connecting server...");
 				connectB.setEnabled(false);
 				serverIP = ipTextField.getText();
-				serverPort = Integer.parseInt(portTextField.getText());
+				port = Integer.parseInt(portTextField.getText());
 
 				/***do hand shake***/
 				EnhancedProfileManager profile = EZCardLoader.loadEnhancedProfile(new File("pclient.card"), "passwd");
 				try{
 					EnhancedAuthSocketClient local = new EnhancedAuthSocketClient(profile);
-					local.connect(serverIP, serverPort);
+					local.connect(serverIP, port);
 	
 					local.doEnhancedKeyDistribution();
 					byte[] tmp = local.getSessionKey().getKeyValue();
@@ -80,7 +80,7 @@ public class Client
 
 				try{
 					Thread.sleep(100);
-					client = new Socket(serverIP, serverPort);
+					client = new Socket(serverIP, port);
 					sin = new DataInputStream(client.getInputStream());
 					sout = new DataOutputStream(client.getOutputStream());
 					printMsg("connect success!");
@@ -106,7 +106,7 @@ public class Client
 				}
 
 				serverIP = null;
-				serverPort = -1;
+				port = -1;
 				key = iv = null;
 				sout = null;
 				sin = null;
@@ -154,7 +154,10 @@ public class Client
 					return ;
 				}
 
-				File target = new File("client file\\" + fileName);
+				File dest = new File("client file");
+				if(!dest.exists() || !dest.isDirectory())	dest.mkdir();
+
+				File target = new File(dest.getPath(), fileName);
 				FileOutputStream fout = new FileOutputStream(target);
 				byte[] buf = fileName.getBytes();
 				int len;
@@ -389,15 +392,18 @@ public class Client
 	private JFrame frame;
 	private JLabel info;
 	private JTextField ipTextField, portTextField, selectedFileTextField;
-	DefaultListModel<String> serverFileListElement;
+	private DefaultListModel<String> serverFileListElement;
 	private JList<String> serverFileList;
 
+	private ServerSocket ss;
 	private Socket client;
-	private String serverIP;
-	private int serverPort;
-	private boolean connectionStatus;
-	private byte[] key, iv;
+
 	private DataInputStream sin;
 	private DataOutputStream sout;
+
+	private String serverIP;
+	private int port;
+	private boolean connectionStatus;
+	private byte[] key, iv;
 
 }

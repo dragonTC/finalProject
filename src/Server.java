@@ -182,12 +182,12 @@ public class Server
 		}
 	}
 
-	ServerSocket ss;
-	Socket server;
-	byte[] key, iv;
+	private ServerSocket ss;
+	private Socket server;
+	private byte[] key, iv;
 
-	DataInputStream sin;
-	DataOutputStream sout;
+	private DataInputStream sin;
+	private DataOutputStream sout;
 
 	private Scanner scan;
 	private int port;
