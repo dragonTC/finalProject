@@ -22,25 +22,35 @@ public class Client
 		setupUI();
 	}
 
-	private void getServerFileList()
-		throws IOException
-	{
-		serverFileListElement.clear();
+	private void getServerFileList(){
+		try{
+			serverFileListElement.clear();
 
-		sout.writeInt(1);
-		sout.flush();
-		byte[] buf = new byte[2048];
+			sout.writeInt(1);
+			sout.flush();
+			byte[] buf = new byte[2048];
 
-		int cnt = sin.readInt();
-		printMsg("total file: " + cnt);
-		for(int i=0 ; i<cnt ; ++i){
-			int len = sin.readInt();
-			sin.read(buf, 0, len);
+			int cnt = sin.readInt();
+			printLog("total file: " + cnt);
+			for(int i=0 ; i<cnt ; ++i){
+				int len = sin.readInt();
 
-			String stmp = new String(buf, 0, len);
-			printMsg("get list: " + stmp);
-			serverFileListElement.addElement(stmp);
+				sin.read(buf, 0, len);
+
+				buf = CipherUtil.authDecrypt(key, iv, buf);
+				String stmp = new String(buf, 0, len);
+
+				printLog("get list: " + stmp);
+				serverFileListElement.addElement(stmp);
+			}
+		}catch (Exception e) {
+			printMsg("error: receiving file list failed");
+			printLog(e.toString());
+			e.printStackTrace();
+			return ;
 		}
+
+		printMsg("file list received");
 	}
 
 	class connectListener
@@ -78,6 +88,7 @@ public class Client
 				printMsg("authenticate success!");
 				/***end hand shake***/
 
+				/***build connection***/
 				try{
 					Thread.sleep(100);
 					client = new Socket(serverIP, port);
@@ -91,6 +102,9 @@ public class Client
 					changeUIStatus(false);
 					return ;
 				}
+				/***end build connection***/
+
+				getServerFileList();
 			}
 			else{
 				printMsg("disconnecting...");
@@ -137,7 +151,36 @@ public class Client
 		implements ActionListener
 	{
 		public void actionPerformed(ActionEvent ev){
+			try{
+				sout.writeInt(2);
+	
+				File target = new File(selectedFileTextField.getText());
+				if(!target.exists()){
+					printMsg("error: selected file not found!");
+					return ;
+				}
+	
+				byte[] buf = target.getName().getBytes();
+				buf = CipherUtil.authEncrypt(key, iv, buf);
+				sout.writeInt(buf.length);
+				sout.write(buf);
+	
+				FileInputStream fin = new FileInputStream(target);
+				while(fin.read(buf, 0, 16) != -1){
+					buf = CipherUtil.authEncrypt(key, iv, buf);
+	
+					sout.writeInt(buf.length);
+					sout.write(buf, 0, buf.length);
+				}
+				sout.writeInt(0);
+	
+				fin.close();
+			}catch (Exception e) {
+				e.printStackTrace();
+				printMsg("error: upload failed");
+			}
 
+			getServerFileList();
 		}
 	}
 
@@ -192,6 +235,26 @@ public class Client
 	private void printMsg(String str){
 		info.setText("[client] " + str);
 		System.out.println("[client] " + str);
+		try{
+			FileOutputStream fout = new FileOutputStream(new File("clientLog.txt"), true);
+			fout.write(str.getBytes());
+			fout.write(System.getProperty("line.separator").getBytes());
+			fout.close();
+		}catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void printLog(String str){
+		System.out.println("[client] " +str);
+		try{
+			FileOutputStream fout = new FileOutputStream(new File("clientLog.txt"), true);
+			fout.write(str.getBytes());
+			fout.write(System.getProperty("line.separator").getBytes());
+			fout.close();
+		}catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 	private void setupUI(){
@@ -362,12 +425,6 @@ public class Client
 			deleteB.setEnabled(true);
 
 			serverFileList.setEnabled(true);
-			try{
-				getServerFileList();
-			}catch(Exception e){
-				printMsg(e.getMessage());
-				e.printStackTrace();
-			}
 		}
 		else{
 			connectionStatus = false;

@@ -24,10 +24,18 @@ public class Server
 			printLog("server started");
 
 			/***do handshake***/
+			EnhancedProfileManager profile = EZCardLoader.loadEnhancedProfile(new File("pserver.card"), "passwd");
+			EnhancedAuthSocketServerAcceptor serverAcceptor = new EnhancedAuthSocketServerAcceptor(profile);
 			try{
-				EnhancedProfileManager profile = EZCardLoader.loadEnhancedProfile(new File("pserver.card"), "passwd");
-				EnhancedAuthSocketServerAcceptor serverAcceptor = new EnhancedAuthSocketServerAcceptor(profile);
 				serverAcceptor.bind(port);
+			}
+			catch (Exception e) {
+				e.printStackTrace();
+				printLog(e.toString());
+				break;
+			}
+
+			try{
 				AuthSocketServer local = serverAcceptor.accept();
 				printLog("waiting for connection...");
 
@@ -44,7 +52,7 @@ public class Server
 				serverAcceptor.close();
 			}catch(Exception e){
 				e.printStackTrace();
-				printLog(e.getMessage());
+				printLog(e.toString());
 				continue;
 			}
 
@@ -95,7 +103,8 @@ public class Server
 						case 5:	//remove
 					}
 				}
-	
+
+				printLog("end server service");
 			}catch(Exception e){
 				closeServer();
 				e.printStackTrace();
@@ -116,7 +125,7 @@ public class Server
 	}
 
 	private void sendServerFileList()
-		throws IOException
+		throws Exception
 	{
 		printLog("sending file lists...");
 		File serverFileRoot = new File("server file");
@@ -126,6 +135,7 @@ public class Server
 		for(int i=0 ; i<fileList.length ; ++i){
 			printLog("send list: " + fileList[i].getName());
 			byte[] tmp = fileList[i].getName().getBytes();
+			tmp = CipherUtil.authEncrypt(key, iv, tmp);
 			sout.writeInt(tmp.length);
 			sout.flush();
 			sout.write(tmp, 0, tmp.length);
@@ -167,7 +177,27 @@ public class Server
 	}
 
 	private void receiveFile(){
-
+		try{
+			int len = sin.readInt();
+			byte[] buf = new byte[2048];
+			sin.readFully(buf, 0, len);
+			buf = CipherUtil.authDecrypt(key, iv, buf);
+			String fileName = new String(buf);
+	
+			FileOutputStream fout = new FileOutputStream(new File("server file\\" + fileName));
+	
+			while((len = sin.readInt()) != 0){
+				sin.readFully(buf, 0, len);
+				buf = CipherUtil.authDecrypt(key, iv, buf);
+	
+				fout.write(buf);
+			}
+	
+			fout.close();
+		}catch (Exception e) {
+			e.printStackTrace();
+			printLog("failed when receiving file");
+		}
 	}
 
 	void printLog(String str){
