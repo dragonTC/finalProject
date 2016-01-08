@@ -150,9 +150,10 @@ public class Server
 
 		try{
 			int len = sin.readInt();
-			byte[] buf = new byte[2048];
+			byte[] buf = new byte[len];
 			sin.readFully(buf, 0, len);
-			String fileName = new String(buf, 0, len);
+			buf = CipherUtil.authDecrypt(key, iv, buf);
+			String fileName = new String(buf);
 	
 			File target = new File("server file\\" + fileName);
 			if(!target.exists()){
@@ -162,9 +163,13 @@ public class Server
 			}
 
 			FileInputStream fin = new FileInputStream(target);
-			while((len = fin.read(buf, 0, 48)) != -1){
-				sout.writeInt(len);
-				sout.write(buf, 0, len);
+			byte[] dat = new byte[16];
+			while((len = fin.read(dat, 0, 16)) != -1){
+				buf = new byte[len];
+				System.arraycopy(dat, 0, buf, 0, len);
+				buf = CipherUtil.authEncrypt(key, iv, buf);
+				sout.writeInt(buf.length);
+				sout.write(buf, 0, buf.length);
 			}
 			fin.close();
 			sout.writeInt(0);
@@ -179,7 +184,7 @@ public class Server
 	private void receiveFile(){
 		try{
 			int len = sin.readInt();
-			byte[] buf = new byte[2048];
+			byte[] buf = new byte[len];
 			sin.readFully(buf, 0, len);
 			buf = CipherUtil.authDecrypt(key, iv, buf);
 			String fileName = new String(buf);
@@ -187,10 +192,11 @@ public class Server
 			FileOutputStream fout = new FileOutputStream(new File("server file\\" + fileName));
 	
 			while((len = sin.readInt()) != 0){
+				buf = new byte[len];
 				sin.readFully(buf, 0, len);
 				buf = CipherUtil.authDecrypt(key, iv, buf);
 	
-				fout.write(buf);
+				fout.write(buf, 0, buf.length);
 			}
 	
 			fout.close();

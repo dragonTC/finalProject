@@ -28,29 +28,29 @@ public class Client
 
 			sout.writeInt(1);
 			sout.flush();
-			byte[] buf = new byte[2048];
 
 			int cnt = sin.readInt();
 			printLog("total file: " + cnt);
 			for(int i=0 ; i<cnt ; ++i){
 				int len = sin.readInt();
 
-				sin.read(buf, 0, len);
+				byte[] buf = new byte[len];
+				sin.readFully(buf, 0, len);
 
 				buf = CipherUtil.authDecrypt(key, iv, buf);
-				String stmp = new String(buf, 0, len);
+				String stmp = new String(buf);
 
 				printLog("get list: " + stmp);
 				serverFileListElement.addElement(stmp);
 			}
 		}catch (Exception e) {
-			printMsg("error: receiving file list failed");
+			printMsg("error: failed when receiving file list");
 			printLog(e.toString());
 			e.printStackTrace();
 			return ;
 		}
 
-		printMsg("file list received");
+		printLog("file list received");
 	}
 
 	class connectListener
@@ -166,13 +166,19 @@ public class Client
 				sout.write(buf);
 	
 				FileInputStream fin = new FileInputStream(target);
-				while(fin.read(buf, 0, 16) != -1){
+				byte[] dat = new byte[16];
+				int cnt;
+				while((cnt = fin.read(dat, 0, 16)) != -1){
+					buf = new byte[cnt];
+					System.arraycopy(dat, 0, buf, 0, cnt);
 					buf = CipherUtil.authEncrypt(key, iv, buf);
 	
 					sout.writeInt(buf.length);
 					sout.write(buf, 0, buf.length);
 				}
 				sout.writeInt(0);
+
+				printMsg("upload complete!");
 	
 				fin.close();
 			}catch (Exception e) {
@@ -207,15 +213,21 @@ public class Client
 			
 				sout.writeInt(3);
 
+				buf = CipherUtil.authEncrypt(key, iv, buf);
 				sout.writeInt(buf.length);
 				sout.write(buf, 0, buf.length);
 
 				while((len = sin.readInt()) != 0){
+					if(len == -1){
+						printMsg("error occured when downloading, please retry");
+					}
+					buf = new byte[len];
 					sin.readFully(buf, 0, len);
-					fout.write(buf, 0, len);
+					buf = CipherUtil.authDecrypt(key, iv, buf);
+					fout.write(buf);
 				}
 				fout.close();
-			}catch (IOException e) {
+			}catch (Exception e) {
 				e.printStackTrace();
 				printMsg("download failed");
 				return ;
@@ -229,6 +241,22 @@ public class Client
 			}
 
 			printMsg("download complete!");
+		}
+	}
+
+	class renameListener
+		implements ActionListener 
+	{
+		public void actionPerformed(ActionEvent ev){
+			printMsg("rename function has not been implemented");
+		}
+	}
+
+	class deleteListener
+		implements ActionListener
+	{
+		public void actionPerformed(ActionEvent ev){
+			printMsg("delete function has not been implemented");
 		}
 	}
 
@@ -385,7 +413,7 @@ public class Client
 		frame.add(downloadB, cons);
 
 		renameB = new JButton("Rename");
-		//
+		renameB.addActionListener(new renameListener());
 		renameB.setEnabled(false);
 		cons.gridx = 5;		cons.gridy = 5;
 		cons.gridwidth = 1;	cons.gridheight = 1;
@@ -395,7 +423,7 @@ public class Client
 		frame.add(renameB, cons);
 
 		deleteB = new JButton("Delete");
-		//
+		deleteB.addActionListener(new deleteListener());
 		deleteB.setEnabled(false);
 		cons.gridx = 5;		cons.gridy = 6;
 		cons.gridwidth = 1;	cons.gridheight = 1;
