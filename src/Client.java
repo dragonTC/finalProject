@@ -38,7 +38,7 @@ public class Client
 				sin.readFully(buf, 0, len);
 
 				buf = CipherUtil.authDecrypt(key, iv, buf);
-				String stmp = new String(buf);
+				String stmp = new String(buf, 0, buf.length-5);
 
 				printLog("get list: " + stmp);
 				serverFileListElement.addElement(stmp);
@@ -152,13 +152,15 @@ public class Client
 	{
 		public void actionPerformed(ActionEvent ev){
 			try{
-				sout.writeInt(2);
-	
 				File target = new File(selectedFileTextField.getText());
 				if(!target.exists()){
-					printMsg("error: selected file not found!");
+					printMsg("error: selected file is not exist!");
 					return ;
 				}
+				
+				sout.writeInt(2);
+
+				target = encryptFile(target);
 	
 				byte[] buf = target.getName().getBytes();
 				buf = CipherUtil.authEncrypt(key, iv, buf);
@@ -181,6 +183,7 @@ public class Client
 				printMsg("upload complete!");
 	
 				fin.close();
+				target.delete();
 			}catch (Exception e) {
 				e.printStackTrace();
 				printMsg("error: upload failed");
@@ -202,6 +205,7 @@ public class Client
 					printMsg("hadn't select a file");
 					return ;
 				}
+				fileName = fileName + ".lock";
 
 				File dest = new File("client file");
 				if(!dest.exists() || !dest.isDirectory())	dest.mkdir();
@@ -226,7 +230,11 @@ public class Client
 					buf = CipherUtil.authDecrypt(key, iv, buf);
 					fout.write(buf);
 				}
+
 				fout.close();
+
+				decryptFile(target);
+				target.delete();
 			}catch (Exception e) {
 				e.printStackTrace();
 				printMsg("download failed");
@@ -434,6 +442,11 @@ public class Client
 
 		/***end element setting**/
 
+		/***initialize***/
+		fkey = "0123456789ABCDEF".getBytes();
+		fiv = "FEDCBA9876543210".getBytes();
+		/***end initialize***/
+
 		frame.pack();
 		frame.setVisible(true);
 	}
@@ -473,6 +486,56 @@ public class Client
 		}
 	}
 
+	private File encryptFile(File src){
+		File ftmp = null;
+		try{
+			FileInputStream fin = new FileInputStream(src);
+			ftmp = new File(src.getPath() + ".lock");
+			FileOutputStream fout = new FileOutputStream(ftmp);
+	
+			byte[] buf = new byte[16];
+			int cnt;
+			while((cnt = fin.read(buf, 0, 16)) != -1){
+				byte[] tmp = new byte[cnt];
+				System.arraycopy(buf, 0, tmp, 0, cnt);
+				tmp = CipherUtil.authEncrypt(fkey, fiv, tmp);
+				fout.write(tmp);
+			}
+			fout.close(); fin.close();
+
+		}catch (Exception e) {
+			e.printStackTrace();
+			printLog(e.toString());
+		}
+
+		return ftmp;
+	}
+
+	private void decryptFile(File src){
+		try{
+			FileInputStream fin = new FileInputStream(src);
+			char[] ctmp = src.getPath().toCharArray();
+			String stmp = new String(ctmp, 0, ctmp.length-5);
+			File target = new File(stmp);
+			FileOutputStream fout = new FileOutputStream(target);
+	
+			byte[] buf = new byte[48];
+			int cnt;
+			while((cnt = fin.read(buf, 0, 48)) != -1){
+				byte[] tmp = new byte[cnt];
+				System.arraycopy(buf, 0, tmp, 0, cnt);
+				tmp = CipherUtil.authDecrypt(fkey, fiv, tmp);
+				fout.write(tmp);
+			}
+	
+			fin.close(); fout.close();
+
+		}catch (Exception e) {
+			e.printStackTrace();
+			printLog(e.toString());
+		}
+	}
+
 	private JButton connectB, browseB, uploadB, downloadB, renameB, deleteB;
 	private JFrame frame;
 	private JLabel info;
@@ -489,6 +552,6 @@ public class Client
 	private String serverIP;
 	private int port;
 	private boolean connectionStatus;
-	private byte[] key, iv;
+	private byte[] key, iv, fkey, fiv;
 
 }
