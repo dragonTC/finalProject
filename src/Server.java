@@ -159,20 +159,23 @@ public class Server
 		printLog("sending file...");
 
 		try{
+			//get filename
 			int len = sin.readInt();
 			byte[] buf = new byte[len];
 			sin.readFully(buf, 0, len);
 			buf = CipherUtil.authDecrypt(key, iv, buf);
 			String fileName = new String(buf);
-	
+
+			//check file
 			File target = new File("server file\\" + fileName);
 			if(!target.exists()){
-				sout.writeInt(0);
+				sout.writeInt(-1);
 				sout.flush();
 				printLog("client attmpt to receive non-exist file : " + fileName);
 				return ;
 			}
 
+			//send file
 			FileInputStream fin = new FileInputStream(target);
 			byte[] dat = new byte[16];
 			while((len = fin.read(dat, 0, 16)) != -1){
@@ -195,6 +198,7 @@ public class Server
 	private void receiveFile()
 	{
 		try{
+			//get file
 			int len = sin.readInt();
 			byte[] buf = new byte[len];
 			sin.readFully(buf, 0, len);
@@ -214,6 +218,7 @@ public class Server
 	
 			fout.close();
 
+			//send signature
 			printLog("send signature...");
 			len = sin.readInt();
 			buf = new byte[len];
@@ -239,11 +244,12 @@ public class Server
 	}
 
 	private void rename(){
-
+		//not implemented
 	}
 
 	private void remove(){
 		try{
+			//get filename
 			printLog("deleting...");
 			int len = sin.readInt();
 			byte[] buf = new byte[len];
@@ -253,7 +259,7 @@ public class Server
 			String fileName = new String(buf);
 	
 			File target = new File("server file\\" + fileName);
-			if(target.exists()){
+			if(target.exists()){	//delete file
 				sout.writeInt(1);
 
 				target.delete();
@@ -263,7 +269,8 @@ public class Server
 				buf = new byte[len];
 				sin.readFully(buf, 0, len);
 				buf = CipherUtil.authDecrypt(key, iv, buf);
-	
+
+				//send signature
 				EnhancedProfileManager sender = EZCardLoader.loadEnhancedProfile(new File("pserver.card"), "passwd");
 				Signature sig = new SignatureClient.SignatureCreater()
 					.initSignerID(sender.getPrimitiveProfile().getIdentifier())
@@ -277,7 +284,7 @@ public class Server
 
 				printLog("signature sended");
 				printLog("done!");
-			}else{
+			}else{	//file not found
 				sout.writeInt(0);
 				printLog("client attempted to delete non-exist file: " + fileName);
 				return ;

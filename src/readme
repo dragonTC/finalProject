@@ -1,0 +1,55 @@
+目前已實作功能: download, upload, delete
+Client.jar與Server.jar可以分開置放
+
+
+===client===
+
+在同目錄下必須有一個"pclient.card"，作為認證的profile使用
+
+ download:
+從file list選擇檔案後，從server下載並解密指定的檔案到"client file"資料夾，
+若此資料夾不存在會自動創建
+
+ upload: 
+先選擇一個local file後，加密並上傳至server，
+上傳完成後，server會回傳一個signature，
+放置在client端的"signature"資料夾底下，
+若此資料夾不存在會自動創建。
+
+ rename:
+尚未實作
+
+ delete:
+從file list選擇檔案後，令server刪除指定的檔案，
+刪除完成後，server會回傳一個signature，
+放置在client端的"signature"資料夾底下，
+若此資料夾不存在會自動創建。
+
+ log:
+client會記錄詳細的運作訊息在clientLog.txt裡面，
+以供事後除錯或查詢
+
+
+===server===
+
+在同目錄下必須有個"pserver.card"，作為認證的profile使用
+
+ download:
+收到指令後，server會檢查是否有指定的檔案，
+若有則回傳指定的檔案，否則回傳失敗訊息。
+
+ upload:
+收到指令後，server會接收檔案，
+並存進"server file"資料夾，
+若此資料夾不存在會自動創建。
+
+ rename:
+尚未實作
+
+ delete:
+收到指令後，檢查檔案是否存在，
+若有則刪除並回傳簽章，否則回傳失敗訊息。
+
+ log:
+server亦會記錄詳細的運作訊息在serverLog.txt裡面，
+以供事後除錯或查詢

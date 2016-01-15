@@ -143,6 +143,7 @@ public class Client
 		}
 	}
 
+	//select local file
 	class browseListner
 		implements ActionListener 
 	{
@@ -162,6 +163,7 @@ public class Client
 	{
 		public void actionPerformed(ActionEvent ev){
 			try{
+				//send task
 				File target = new File(selectedFileTextField.getText());
 				if(!target.exists()){
 					printMsg("error: selected file is not exist!");
@@ -200,6 +202,7 @@ public class Client
 				fin.close();
 				target.delete();
 
+				//receive signature
 				EnhancedProfileManager receiver = EZCardLoader.loadEnhancedProfile(new File("pclient.card"), "passwd");
 				buf = receiver.getPrimitiveProfile().getIdentifier();
 				buf = CipherUtil.authEncrypt(key, iv, buf);
@@ -214,6 +217,8 @@ public class Client
 					printMsg("upload complete!");
 				}
 				foout.writeObject(sig);
+
+				foout.close();
 
 			}catch (Exception e) {
 				e.printStackTrace();
@@ -231,6 +236,7 @@ public class Client
 			printMsg("downloading...");
 
 			try{
+				//send task
 				String fileName = serverFileList.getSelectedValue();
 				if(fileName == null){
 					printMsg("hadn't select a file");
@@ -244,7 +250,6 @@ public class Client
 				File target = new File(dest.getPath(), fileName);
 				FileOutputStream fout = new FileOutputStream(target);
 				byte[] buf = fileName.getBytes();
-				int len;
 			
 				sout.writeInt(3);
 
@@ -252,9 +257,10 @@ public class Client
 				sout.writeInt(buf.length);
 				sout.write(buf, 0, buf.length);
 
+				int len;
 				while((len = sin.readInt()) != 0){
 					if(len == -1){
-						printMsg("error occured when downloading, please retry");
+						printMsg("error: file isn't exist, download failed");
 					}
 					buf = new byte[len];
 					sin.readFully(buf, 0, len);
@@ -268,16 +274,11 @@ public class Client
 				target.delete();
 			}catch (Exception e) {
 				e.printStackTrace();
-				printMsg("download failed");
+				printMsg("execption occured, download failed");
 				return ;
 			}
 
-			try{
-				getServerFileList();
-			}catch (Exception e) {
-				e.printStackTrace();
-				printMsg("failed to receive file list");
-			}
+			getServerFileList();
 
 			printMsg("download complete!");
 		}
@@ -296,6 +297,7 @@ public class Client
 	{
 		public void actionPerformed(ActionEvent ev){
 			try{
+				//send task
 				String fileName = serverFileList.getSelectedValue();
 				if(fileName == null){
 					printMsg("hadn't select a file");
@@ -313,6 +315,7 @@ public class Client
 				int success = sin.readInt();
 
 				if(success == 1){
+					//receive signature
 					File sigFolder = new File("signature");
 					if(!sigFolder.exists() || !sigFolder.isDirectory())	sigFolder.mkdir();
 					FileOutputStream fout = new FileOutputStream(new File(sigFolder, fileName+".del.sig"));
@@ -332,6 +335,8 @@ public class Client
 						printMsg("delete complete!");
 					}
 					foout.writeObject(sig);
+
+					foout.close();
 				}else{
 					printMsg("delete failed: file not exist");
 				}
@@ -344,6 +349,7 @@ public class Client
 		}
 	}
 
+	//print message to GUI, console, and log file
 	private void printMsg(String str){
 		info.setText("[client] " + str);
 		System.out.println("[client] " + str);
@@ -357,6 +363,7 @@ public class Client
 		}
 	}
 
+	//print message to console and log file
 	private void printLog(String str){
 		System.out.println("[client] " +str);
 		try{
@@ -527,6 +534,7 @@ public class Client
 		frame.setVisible(true);
 	}
 	
+	//enable or disable buttons 
 	private void changeUIStatus(boolean status){
 		if(status){
 			connectionStatus = true;
@@ -562,6 +570,7 @@ public class Client
 		}
 	}
 
+	//encrypt a file by authEncrypt()
 	private File encryptFile(File src){
 		File ftmp = null;
 		try{
@@ -587,6 +596,7 @@ public class Client
 		return ftmp;
 	}
 
+	//decrypt a file by authDecrypt()
 	private void decryptFile(File src){
 		try{
 			FileInputStream fin = new FileInputStream(src);

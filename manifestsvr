@@ -1,0 +1,2 @@
+Main-Class: Server
+Class-Path: lib/ezprivacy.jar lib/netty.jar
