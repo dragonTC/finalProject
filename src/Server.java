@@ -6,6 +6,8 @@ import ezprivacy.toolkit.*;
 import ezprivacy.service.authsocket.*;
 import ezprivacy.secret.*;
 import ezprivacy.netty.session.ProtocolException;
+import ezprivacy.secret.Signature;
+import ezprivacy.service.signature.SignatureClient;
 
 public class Server
 	implements Runnable
@@ -68,6 +70,9 @@ public class Server
 
 				sin = new DataInputStream(server.getInputStream());
 				sout = new DataOutputStream(server.getOutputStream());
+				oin = new ObjectInputStream(sin);
+				oout = new ObjectOutputStream(sout);
+				oout.flush();
 			}catch (Exception e) {
 				e.printStackTrace();
 				printLog("failed to build connection");
@@ -99,8 +104,11 @@ public class Server
 						case 3:
 							sendFile();
 							break;
-						case 4:	//rename
-						case 5:	//remove
+						case 4:
+							rename();
+							break;
+						case 5:
+							remove();
 					}
 				}
 
@@ -132,6 +140,7 @@ public class Server
 		File[] fileList = serverFileRoot.listFiles();
 
 		sout.writeInt(fileList.length);
+		sout.flush();
 		for(int i=0 ; i<fileList.length ; ++i){
 			printLog("send list: " + fileList[i].getName());
 			byte[] tmp = fileList[i].getName().getBytes();
@@ -141,6 +150,7 @@ public class Server
 			sout.write(tmp, 0, tmp.length);
 			sout.flush();
 		}
+		printLog("done!");
 	}
 
 	private void sendFile()
@@ -158,6 +168,7 @@ public class Server
 			File target = new File("server file\\" + fileName);
 			if(!target.exists()){
 				sout.writeInt(0);
+				sout.flush();
 				printLog("client attmpt to receive non-exist file : " + fileName);
 				return ;
 			}
@@ -181,13 +192,15 @@ public class Server
 		}
 	}
 
-	private void receiveFile(){
+	private void receiveFile()
+	{
 		try{
 			int len = sin.readInt();
 			byte[] buf = new byte[len];
 			sin.readFully(buf, 0, len);
 			buf = CipherUtil.authDecrypt(key, iv, buf);
 			String fileName = new String(buf);
+			printLog("receive file " + fileName);
 	
 			FileOutputStream fout = new FileOutputStream(new File("server file\\" + fileName));
 	
@@ -200,9 +213,78 @@ public class Server
 			}
 	
 			fout.close();
+
+			printLog("send signature...");
+			len = sin.readInt();
+			buf = new byte[len];
+			sin.readFully(buf, 0, len);
+			buf = CipherUtil.authDecrypt(key, iv, buf);
+
+			EnhancedProfileManager sender = EZCardLoader.loadEnhancedProfile(new File("pserver.card"), "passwd");
+			Signature sig = new SignatureClient.SignatureCreater()
+				.initSignerID(sender.getPrimitiveProfile().getIdentifier())
+				.initReceiverID(buf)
+				.initMessage(fileName.getBytes())
+				.initSignatureKey(sender.getPrimitiveProfile().getSignatureKey())
+				.initTimestamp(System.nanoTime()).createSignature();
+
+			oout.writeObject(sig);
+			oout.flush();
+
+			printLog("done!");
 		}catch (Exception e) {
 			e.printStackTrace();
 			printLog("failed when receiving file");
+		}
+	}
+
+	private void rename(){
+
+	}
+
+	private void remove(){
+		try{
+			printLog("deleting...");
+			int len = sin.readInt();
+			byte[] buf = new byte[len];
+			sin.readFully(buf, 0, len);
+	
+			buf = CipherUtil.authDecrypt(key, iv, buf);
+			String fileName = new String(buf);
+	
+			File target = new File("server file\\" + fileName);
+			if(target.exists()){
+				sout.writeInt(1);
+
+				target.delete();
+				printLog("file deleted");
+	
+				len = sin.readInt();
+				buf = new byte[len];
+				sin.readFully(buf, 0, len);
+				buf = CipherUtil.authDecrypt(key, iv, buf);
+	
+				EnhancedProfileManager sender = EZCardLoader.loadEnhancedProfile(new File("pserver.card"), "passwd");
+				Signature sig = new SignatureClient.SignatureCreater()
+					.initSignerID(sender.getPrimitiveProfile().getIdentifier())
+					.initReceiverID(buf)
+					.initMessage(fileName.getBytes())
+					.initSignatureKey(sender.getPrimitiveProfile().getSignatureKey())
+					.initTimestamp(System.nanoTime()).createSignature();
+	
+				oout.writeObject(sig);
+				oout.flush();
+
+				printLog("signature sended");
+				printLog("done!");
+			}else{
+				sout.writeInt(0);
+				printLog("client attempted to delete non-exist file: " + fileName);
+				return ;
+			}
+		}catch (Exception e) {
+			e.printStackTrace();
+			printLog(e.toString());
 		}
 	}
 
@@ -224,6 +306,8 @@ public class Server
 
 	private DataInputStream sin;
 	private DataOutputStream sout;
+	private ObjectInputStream oin;
+	private ObjectOutputStream oout;
 
 	private Scanner scan;
 	private int port;

@@ -9,6 +9,8 @@ import ezprivacy.toolkit.*;
 import ezprivacy.service.authsocket.*;
 import ezprivacy.secret.*;
 import ezprivacy.netty.session.ProtocolException;
+import ezprivacy.secret.Signature;
+import ezprivacy.service.signature.SignatureClient;
 
 public class Client
 	implements Runnable
@@ -66,6 +68,7 @@ public class Client
 				/***do hand shake***/
 				EnhancedProfileManager profile = EZCardLoader.loadEnhancedProfile(new File("pclient.card"), "passwd");
 				try{
+					printLog("authenticating server...");
 					EnhancedAuthSocketClient local = new EnhancedAuthSocketClient(profile);
 					local.connect(serverIP, port);
 	
@@ -78,22 +81,29 @@ public class Client
 					EZCardLoader.saveEnhancedProfile(profile, new File("pclient.card"), "passwd");
 
 					local.close();
+
+					printMsg("authenticate success!");
 				}catch(Exception e){
 					printMsg("failed to authenticate server, please try again");
 					EZCardLoader.saveEnhancedProfile(profile, new File("pclient.card"), "passwd");
 					changeUIStatus(false);
 					return ;
 				}
-
-				printMsg("authenticate success!");
 				/***end hand shake***/
 
 				/***build connection***/
 				try{
+					printLog("building connection with server...");
+
 					Thread.sleep(100);
 					client = new Socket(serverIP, port);
-					sin = new DataInputStream(client.getInputStream());
+
 					sout = new DataOutputStream(client.getOutputStream());
+					sin = new DataInputStream(client.getInputStream());
+					oout = new ObjectOutputStream(sout);
+					oout.flush();
+					oin = new ObjectInputStream(sin);
+
 					printMsg("connect success!");
 					changeUIStatus(true);
 				}catch (Exception e) {
@@ -157,7 +167,12 @@ public class Client
 					printMsg("error: selected file is not exist!");
 					return ;
 				}
-				
+
+				File sigFolder = new File("signature");
+				if(!sigFolder.exists() || !sigFolder.isDirectory())	sigFolder.mkdir();
+				FileOutputStream fout = new FileOutputStream(new File(sigFolder, target.getName()+".sig"));
+				ObjectOutputStream foout = new ObjectOutputStream(fout);
+
 				sout.writeInt(2);
 
 				target = encryptFile(target);
@@ -180,10 +195,26 @@ public class Client
 				}
 				sout.writeInt(0);
 
-				printMsg("upload complete!");
+				printLog("file uploaded");
 	
 				fin.close();
 				target.delete();
+
+				EnhancedProfileManager receiver = EZCardLoader.loadEnhancedProfile(new File("pclient.card"), "passwd");
+				buf = receiver.getPrimitiveProfile().getIdentifier();
+				buf = CipherUtil.authEncrypt(key, iv, buf);
+				sout.writeInt(buf.length);
+				sout.write(buf);
+
+				Signature sig = (Signature)oin.readObject();
+				if(SignatureClient.verifyWithoutArbiter(sig, receiver.getPrimitiveProfile()) == false){
+					printMsg("signature is not correct, upload may failed");
+				}else{
+					printLog("signature received");
+					printMsg("upload complete!");
+				}
+				foout.writeObject(sig);
+
 			}catch (Exception e) {
 				e.printStackTrace();
 				printMsg("error: upload failed");
@@ -264,7 +295,52 @@ public class Client
 		implements ActionListener
 	{
 		public void actionPerformed(ActionEvent ev){
-			printMsg("delete function has not been implemented");
+			try{
+				String fileName = serverFileList.getSelectedValue();
+				if(fileName == null){
+					printMsg("hadn't select a file");
+					return ;
+				}
+				fileName = fileName + ".lock";
+
+				sout.writeInt(5);
+
+				byte[] buf = fileName.getBytes();
+				buf = CipherUtil.authEncrypt(key, iv, buf);
+				sout.writeInt(buf.length);
+				sout.write(buf);
+
+				int success = sin.readInt();
+
+				if(success == 1){
+					File sigFolder = new File("signature");
+					if(!sigFolder.exists() || !sigFolder.isDirectory())	sigFolder.mkdir();
+					FileOutputStream fout = new FileOutputStream(new File(sigFolder, fileName+".del.sig"));
+					ObjectOutputStream foout = new ObjectOutputStream(fout);
+	
+					EnhancedProfileManager receiver = EZCardLoader.loadEnhancedProfile(new File("pclient.card"), "passwd");
+					buf = receiver.getPrimitiveProfile().getIdentifier();
+					buf = CipherUtil.authEncrypt(key, iv, buf);
+					sout.writeInt(buf.length);
+					sout.write(buf);
+	
+					Signature sig = (Signature)oin.readObject();
+					if(SignatureClient.verifyWithoutArbiter(sig, receiver.getPrimitiveProfile()) == false){
+						printMsg("signature is not correct, operation may failed");
+					}else{
+						printLog("signature received");
+						printMsg("delete complete!");
+					}
+					foout.writeObject(sig);
+				}else{
+					printMsg("delete failed: file not exist");
+				}
+
+				getServerFileList();
+			}catch (Exception e) {
+				e.printStackTrace();
+				printLog(e.toString());
+			}
 		}
 	}
 
@@ -548,6 +624,8 @@ public class Client
 
 	private DataInputStream sin;
 	private DataOutputStream sout;
+	private ObjectInputStream oin;
+	private ObjectOutputStream oout;
 
 	private String serverIP;
 	private int port;
