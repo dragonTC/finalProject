@@ -1,3 +1,6 @@
+開發: JDK 8u60
+測試: JRE 8u65
+
 目前已實作功能: download, upload, delete
 Client.jar與Server.jar可以分開置放
 
