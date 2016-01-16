@@ -137,6 +137,10 @@ public class Server
 	{
 		printLog("sending file lists...");
 		File serverFileRoot = new File("server file");
+		if(!serverFileRoot.exists()){
+			sout.writeInt(0);
+			return ;
+		}
 		File[] fileList = serverFileRoot.listFiles();
 
 		sout.writeInt(fileList.length);
@@ -205,8 +209,10 @@ public class Server
 			buf = CipherUtil.authDecrypt(key, iv, buf);
 			String fileName = new String(buf);
 			printLog("receive file " + fileName);
-	
-			FileOutputStream fout = new FileOutputStream(new File("server file\\" + fileName));
+
+			File serverFileRoot = new File("server file");
+			if(!serverFileRoot.exists())	serverFileRoot.mkdir();
+			FileOutputStream fout = new FileOutputStream(new File(serverFileRoot, fileName));
 	
 			while((len = sin.readInt()) != 0){
 				buf = new byte[len];
